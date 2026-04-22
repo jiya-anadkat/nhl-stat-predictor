@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NHL Trade Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,300;0,400;0,600;0,700;0,800;1,600&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #080A0D;
+    --bg-card: #0D1017;
+    --bg-elevated: #131820;
+    --bg-input: #0A0D12;
+    --border: rgba(255,255,255,0.07);
+    --border-hover: rgba(255,255,255,0.14);
+    --accent: #00B4D8;
+    --accent-dim: rgba(0,180,216,0.12);
+    --accent-glow: rgba(0,180,216,0.25);
+    --green: #22C55E;
+    --green-dim: rgba(34,197,94,0.12);
+    --red: #EF4444;
+    --red-dim: rgba(239,68,68,0.12);
+    --gold: #F59E0B;
+    --text: #E8EDF2;
+    --text-secondary: #6B7A8D;
+    --text-muted: #3D4A57;
+    --font-display: 'Barlow Condensed', sans-serif;
+    --font-body: 'Barlow', sans-serif;
+  }
+
+  html { background: var(--bg); color: var(--text); font-family: var(--font-body); }
+  body { min-height: 100vh; overflow-x: hidden; }
+
+  /* ICE GRID BACKGROUND */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(0,180,216,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,180,216,0.025) 1px, transparent 1px);
+    background-size: 60px 60px;
+  }
+  body::after {
+    content: '';
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(0,180,216,0.06) 0%, transparent 70%);
+  }
+
+  .app { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 0 24px 80px; }
+
+  /* HEADER */
+  header {
+    display: flex; align-items: center; gap: 20px;
+    padding: 32px 0 40px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+  }
+  .logo-mark {
+    width: 48px; height: 48px; flex-shrink: 0;
+    background: var(--accent); border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 24px var(--accent-glow);
+  }
+  .logo-mark svg { width: 28px; height: 28px; fill: #080A0D; }
+  .header-text h1 {
+    font-family: var(--font-display);
+    font-size: 32px; font-weight: 800; letter-spacing: 0.04em;
+    text-transform: uppercase; line-height: 1;
+    background: linear-gradient(135deg, #fff 0%, var(--accent) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .header-text p { font-size: 13px; color: var(--text-secondary); margin-top: 4px; letter-spacing: 0.05em; text-transform: uppercase; }
+
+  /* TEAM SELECTOR */
+  .team-selector-section { margin-bottom: 40px; }
+  .section-label {
+    font-family: var(--font-display);
+    font-size: 11px; font-weight: 600; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--text-secondary);
+    margin-bottom: 12px;
+  }
+  .team-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+  }
+  .team-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--font-display);
+    font-size: 14px; font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--text-secondary);
+    position: relative; overflow: hidden;
+  }
+  .team-btn:hover {
+    border-color: var(--border-hover);
+    color: var(--text);
+    background: var(--bg-elevated);
+  }
+  .team-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-dim);
+    box-shadow: inset 0 0 20px rgba(0,180,216,0.05), 0 0 12px rgba(0,180,216,0.1);
+  }
+  .team-abbr { font-size: 16px; font-weight: 700; }
+  .team-name-short { font-size: 10px; color: inherit; opacity: 0.7; font-weight: 400; }
+
+  /* LOADING STATE */
+  .loading-state {
+    display: none; text-align: center; padding: 60px 0;
+    font-family: var(--font-display);
+  }
+  .loading-state.visible { display: block; }
+  .loader {
+    width: 40px; height: 40px; margin: 0 auto 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-state p { color: var(--text-secondary); font-size: 14px; letter-spacing: 0.1em; text-transform: uppercase; }
+
+  /* MAIN ANALYSIS PANEL */
+  .analysis-panel { display: none; }
+  .analysis-panel.visible { display: block; }
+
+  /* STATS ROW */
+  .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 32px; }
+  .stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    position: relative; overflow: hidden;
+  }
+  .stat-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0;
+    height: 2px; background: var(--accent);
+  }
+  .stat-card .label {
+    font-size: 11px; color: var(--text-secondary);
+    text-transform: uppercase; letter-spacing: 0.12em;
+    font-weight: 500; margin-bottom: 8px;
+  }
+  .stat-card .value {
+    font-family: var(--font-display);
+    font-size: 36px; font-weight: 700; letter-spacing: 0.02em;
+    line-height: 1; color: var(--text);
+  }
+  .stat-card .sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+  /* ROSTER SECTION */
+  .roster-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .roster-table-wrap {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 32px;
+  }
+  .roster-table { width: 100%; border-collapse: collapse; }
+  .roster-table thead tr {
+    border-bottom: 1px solid var(--border);
+  }
+  .roster-table th {
+    padding: 12px 16px;
+    font-size: 10px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--text-secondary);
+    text-align: left;
+  }
+  .roster-table th.right { text-align: right; }
+  .roster-table tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+    cursor: pointer;
+  }
+  .roster-table tbody tr:last-child { border-bottom: none; }
+  .roster-table tbody tr:hover { background: var(--bg-elevated); }
+  .roster-table tbody tr.selected { background: rgba(0,180,216,0.07); }
+  .roster-table td {
+    padding: 12px 16px;
+    font-size: 14px; color: var(--text);
+  }
+  .roster-table td.right { text-align: right; font-variant-numeric: tabular-nums; }
+  .player-cell { display: flex; align-items: center; gap: 12px; }
+  .player-thumb {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    object-fit: cover; flex-shrink: 0;
+  }
+  .player-thumb-placeholder {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display); font-size: 13px; font-weight: 700;
+    color: var(--text-secondary);
+  }
+  .player-name { font-weight: 500; font-size: 14px; }
+  .pos-badge {
+    display: inline-block;
+    padding: 2px 7px; border-radius: 4px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+    background: var(--bg-elevated); color: var(--text-secondary);
+    border: 1px solid var(--border);
+    text-transform: uppercase;
+  }
+  .ppg-val { font-family: var(--font-display); font-size: 16px; font-weight: 600; color: var(--text); }
+  .select-indicator {
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 1.5px solid var(--border-hover);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.15s;
+  }
+  .selected .select-indicator {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .selected .select-indicator::after {
+    content: ''; width: 6px; height: 6px;
+    border-radius: 50%; background: #080A0D;
+  }
+
+  /* TRADE BUILDER */
+  .trade-builder {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    margin-bottom: 32px;
+  }
+  .trade-builder h2 {
+    font-family: var(--font-display);
+    font-size: 20px; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; margin-bottom: 24px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .trade-builder h2 .dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 2s ease infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .trade-columns { display: grid; grid-template-columns: 1fr auto 1fr; gap: 20px; align-items: start; }
+  .trade-side-label {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--text-secondary);
+    margin-bottom: 10px;
+  }
+  .selected-player-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    min-height: 72px;
+    display: flex; align-items: center; gap: 12px;
+    position: relative;
+  }
+  .selected-player-card.empty {
+    border-style: dashed; border-color: var(--border-hover);
+    justify-content: center;
+    font-size: 13px; color: var(--text-muted);
+    font-style: italic;
+  }
+  .selected-player-card .ppg-tag {
+    margin-left: auto; font-family: var(--font-display);
+    font-size: 22px; font-weight: 700; color: var(--text-secondary);
+  }
+  .trade-arrow {
+    display: flex; align-items: center; justify-content: center;
+    padding-top: 28px;
+  }
+  .trade-arrow svg { width: 28px; height: 28px; color: var(--text-muted); }
+
+  /* SEARCH */
+  .search-wrap { position: relative; margin-top: 8px; }
+  .search-input {
+    width: 100%;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-family: var(--font-body); font-size: 14px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .search-input:focus { border-color: var(--accent); }
+  .search-input::placeholder { color: var(--text-muted); }
+  .search-results {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 100;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-hover);
+    border-radius: 8px; overflow: hidden;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.6);
+    display: none;
+  }
+  .search-results.open { display: block; }
+  .search-result-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px; cursor: pointer;
+    transition: background 0.1s;
+    border-bottom: 1px solid var(--border);
+  }
+  .search-result-item:last-child { border-bottom: none; }
+  .search-result-item:hover { background: rgba(0,180,216,0.08); }
+  .result-name { font-size: 14px; font-weight: 500; }
+  .result-meta { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
+  .result-thumb {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--bg-card); object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  /* SIMULATE BUTTON */
+  .simulate-btn {
+    width: 100%; margin-top: 24px;
+    padding: 16px;
+    background: var(--accent);
+    border: none; border-radius: 8px;
+    font-family: var(--font-display); font-size: 18px; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: #080A0D; cursor: pointer;
+    transition: all 0.15s;
+    box-shadow: 0 4px 20px rgba(0,180,216,0.3);
+  }
+  .simulate-btn:hover { box-shadow: 0 6px 28px rgba(0,180,216,0.5); transform: translateY(-1px); }
+  .simulate-btn:active { transform: translateY(0); }
+  .simulate-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  /* RESULT */
+  .result-card {
+    border-radius: 12px;
+    padding: 28px;
+    display: none;
+    border: 1px solid;
+    margin-top: 20px;
+    position: relative; overflow: hidden;
+  }
+  .result-card.visible { display: block; }
+  .result-card.positive {
+    background: var(--green-dim);
+    border-color: rgba(34,197,94,0.3);
+  }
+  .result-card.negative {
+    background: var(--red-dim);
+    border-color: rgba(239,68,68,0.3);
+  }
+  .result-headline {
+    font-family: var(--font-display);
+    font-size: 14px; font-weight: 600; letter-spacing: 0.12em;
+    text-transform: uppercase; margin-bottom: 16px;
+  }
+  .result-card.positive .result-headline { color: var(--green); }
+  .result-card.negative .result-headline { color: var(--red); }
+
+  .result-numbers { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .result-num { text-align: center; }
+  .result-num .label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 6px; }
+  .result-num .val { font-family: var(--font-display); font-size: 40px; font-weight: 800; line-height: 1; }
+  .result-num .val.old { color: var(--text-secondary); }
+  .result-num .val.new-pos { color: var(--green); }
+  .result-num .val.new-neg { color: var(--red); }
+  .result-num .val.diff-pos { color: var(--green); }
+  .result-num .val.diff-neg { color: var(--red); }
+
+  .divider { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 3px; }
+
+  @media (max-width: 640px) {
+    .stats-row { grid-template-columns: 1fr 1fr; }
+    .trade-columns { grid-template-columns: 1fr; }
+    .trade-arrow { display: none; }
+    .result-numbers { grid-template-columns: 1fr 1fr; }
+    .team-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo-mark">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
+      </svg>
+    </div>
+    <div class="header-text">
+      <h1>NHL Trade Simulator</h1>
+      <p>Points-based roster projection engine &mdash; 2026&ndash;27 Season</p>
+    </div>
+  </header>
+
+  <!-- TEAM SELECTOR -->
+  <div class="team-selector-section">
+    <div class="section-label">Select Your Team</div>
+    <div class="team-grid" id="teamGrid"></div>
+  </div>
+
+  <!-- LOADING -->
+  <div class="loading-state" id="loadingState">
+    <div class="loader"></div>
+    <p>Loading Roster Data&hellip;</p>
+  </div>
+
+  <!-- ANALYSIS PANEL -->
+  <div class="analysis-panel" id="analysisPanel">
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="label">Team Total PPG</div>
+        <div class="value" id="statPPG">—</div>
+        <div class="sub">Skaters only</div>
+      </div>
+      <div class="stat-card" style="--accent: var(--gold);">
+        <div class="label">Projected Standings Pts</div>
+        <div class="value" id="statProjected">—</div>
+        <div class="sub">Based on 82-game season</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">League Ratio</div>
+        <div class="value" id="statRatio">—</div>
+        <div class="sub">2-year calibrated avg</div>
+      </div>
+    </div>
+
+    <!-- ROSTER TABLE -->
+    <div class="roster-header">
+      <div class="section-label" id="rosterLabel">Roster</div>
+    </div>
+    <div class="roster-table-wrap">
+      <table class="roster-table" id="rosterTable">
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th>Pos</th>
+            <th class="right">GP</th>
+            <th class="right">G</th>
+            <th class="right">A</th>
+            <th class="right">PTS</th>
+            <th class="right">PPG</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="rosterBody"></tbody>
+      </table>
+    </div>
+
+    <hr class="divider">
+
+    <!-- TRADE BUILDER -->
+    <div class="trade-builder">
+      <h2><span class="dot"></span> Trade Builder</h2>
+      <div class="trade-columns">
+        <div>
+          <div class="trade-side-label">Trading Away</div>
+          <div class="selected-player-card empty" id="outCard">
+            <span>← Select a player from the roster above</span>
+          </div>
+        </div>
+        <div class="trade-arrow">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M8 7h12m0 0l-4-4m4 4l-4 4M4 17h12m0 0l-4-4m4 4l-4 4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div>
+          <div class="trade-side-label">Acquiring</div>
+          <div class="selected-player-card empty" id="inCard">
+            <span id="inCardPlaceholder">Search for a player below</span>
+          </div>
+          <div class="search-wrap" style="margin-top: 12px;">
+            <input class="search-input" id="searchInput" type="text" placeholder="Search NHL players…" autocomplete="off">
+            <div class="search-results" id="searchResults"></div>
+          </div>
+        </div>
+      </div>
+
+      <button class="simulate-btn" id="simulateBtn" disabled>Simulate Trade</button>
+
+      <div class="result-card" id="resultCard">
+        <div class="result-headline" id="resultHeadline"></div>
+        <div class="result-numbers">
+          <div class="result-num">
+            <div class="label">Previous Projection</div>
+            <div class="val old" id="resOld"></div>
+          </div>
+          <div class="result-num">
+            <div class="label">New Projection</div>
+            <div class="val" id="resNew"></div>
+          </div>
+          <div class="result-num">
+            <div class="label">Net Impact</div>
+            <div class="val" id="resDiff"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const API = '';
+let teamData = null;
+let selectedOut = null;
+let selectedIn = null;
+let searchTimeout = null;
+
+async function loadTeams() {
+  const res = await fetch(`${API}/api/teams`);
+  const teams = await res.json();
+  const grid = document.getElementById('teamGrid');
+  teams.forEach(team => {
+    const btn = document.createElement('button');
+    btn.className = 'team-btn';
+    btn.dataset.abbr = team.abbr;
+    btn.innerHTML = `<span class="team-abbr">${team.abbr}</span>`;
+    btn.addEventListener('click', () => selectTeam(team.abbr, btn));
+    grid.appendChild(btn);
+  });
+}
+
+async function selectTeam(abbr, btn) {
+  document.querySelectorAll('.team-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  selectedOut = null;
+  selectedIn = null;
+  resetTrade();
+
+  document.getElementById('loadingState').classList.add('visible');
+  document.getElementById('analysisPanel').classList.remove('visible');
+
+  try {
+    const res = await fetch(`${API}/api/roster/${abbr}`);
+    teamData = await res.json();
+    if (teamData.error) throw new Error(teamData.error);
+    renderAnalysis(abbr);
+  } catch (e) {
+    alert('Error loading roster: ' + e.message);
+  } finally {
+    document.getElementById('loadingState').classList.remove('visible');
+  }
+}
+
+function renderAnalysis(abbr) {
+  document.getElementById('statPPG').textContent = teamData.teamPPG.toFixed(3);
+  document.getElementById('statProjected').textContent = teamData.projectedPoints;
+  document.getElementById('statRatio').textContent = teamData.leagueRatio;
+  document.getElementById('rosterLabel').textContent = `${abbr} Roster — ${teamData.players.length} Skaters`;
+
+  const tbody = document.getElementById('rosterBody');
+  tbody.innerHTML = '';
+  const sorted = [...teamData.players].sort((a, b) => b.ppg - a.ppg);
+  sorted.forEach(player => {
+    const tr = document.createElement('tr');
+    tr.dataset.id = player.id;
+    const initials = player.name.split(' ').map(n=>n[0]).join('').slice(0,2);
+    const thumb = player.headshot
+      ? `<img class="player-thumb" src="${player.headshot}" alt="" onerror="this.style.display='none';this.nextSibling.style.display='flex'">`
+      : '';
+    const placeholder = `<div class="player-thumb-placeholder" ${player.headshot ? 'style="display:none"' : ''}>${initials}</div>`;
+    tr.innerHTML = `
+      <td>
+        <div class="player-cell">
+          ${thumb}${placeholder}
+          <span class="player-name">${player.name}</span>
+        </div>
+      </td>
+      <td><span class="pos-badge">${player.position}</span></td>
+      <td class="right">${player.gamesPlayed}</td>
+      <td class="right">${player.goals}</td>
+      <td class="right">${player.assists}</td>
+      <td class="right">${player.points}</td>
+      <td class="right"><span class="ppg-val">${player.ppg.toFixed(3)}</span></td>
+      <td><div class="select-indicator"></div></td>
+    `;
+    tr.addEventListener('click', () => selectOutPlayer(player, tr));
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('analysisPanel').classList.add('visible');
+}
+
+function selectOutPlayer(player, row) {
+  document.querySelectorAll('#rosterBody tr').forEach(r => r.classList.remove('selected'));
+  selectedOut = player;
+  row.classList.add('selected');
+
+  const initials = player.name.split(' ').map(n=>n[0]).join('').slice(0,2);
+  const thumb = player.headshot
+    ? `<img class="player-thumb" src="${player.headshot}" alt="" style="width:40px;height:40px;">`
+    : `<div class="player-thumb-placeholder">${initials}</div>`;
+
+  document.getElementById('outCard').classList.remove('empty');
+  document.getElementById('outCard').innerHTML = `
+    ${thumb}
+    <div>
+      <div style="font-weight:600;font-size:14px;">${player.name}</div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">${player.position} &middot; ${player.ppg.toFixed(3)} PPG</div>
+    </div>
+    <div class="ppg-tag">${player.ppg.toFixed(2)}</div>
+  `;
+  checkSimulateReady();
+  resetResult();
+}
+
+function selectInPlayer(player) {
+  selectedIn = player;
+  const initials = player.name.split(' ').map(n=>n[0]).join('').slice(0,2);
+  const thumb = player.headshot
+    ? `<img class="player-thumb" src="${player.headshot}" alt="" style="width:40px;height:40px;">`
+    : `<div class="player-thumb-placeholder">${initials}</div>`;
+
+  document.getElementById('inCard').classList.remove('empty');
+  document.getElementById('inCard').innerHTML = `
+    ${thumb}
+    <div>
+      <div style="font-weight:600;font-size:14px;">${player.name}</div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">${player.position || ''} ${player.teamAbbrev ? '· ' + player.teamAbbrev : ''}</div>
+    </div>
+  `;
+  document.getElementById('searchResults').classList.remove('open');
+  document.getElementById('searchInput').value = '';
+  checkSimulateReady();
+  resetResult();
+}
+
+function checkSimulateReady() {
+  document.getElementById('simulateBtn').disabled = !(selectedOut && selectedIn);
+}
+
+function resetTrade() {
+  selectedOut = null;
+  selectedIn = null;
+  document.getElementById('outCard').className = 'selected-player-card empty';
+  document.getElementById('outCard').innerHTML = '<span>← Select a player from the roster above</span>';
+  document.getElementById('inCard').className = 'selected-player-card empty';
+  document.getElementById('inCard').innerHTML = '<span id="inCardPlaceholder">Search for a player below</span>';
+  document.getElementById('searchInput').value = '';
+  document.getElementById('simulateBtn').disabled = true;
+  resetResult();
+}
+
+function resetResult() {
+  const card = document.getElementById('resultCard');
+  card.className = 'result-card';
+  card.style.display = 'none';
+}
+
+async function simulateTrade() {
+  const btn = document.getElementById('simulateBtn');
+  btn.disabled = true;
+  btn.textContent = 'Simulating…';
+
+  try {
+    const res = await fetch(`${API}/api/simulate-trade`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        teamPPG: teamData.teamPPG,
+        projectedPoints: teamData.projectedPoints,
+        outPPG: selectedOut.ppg,
+        inPlayerId: selectedIn.id,
+        leagueRatio: teamData.leagueRatio,
+      })
+    });
+    const result = await res.json();
+    if (result.error) throw new Error(result.error);
+    showResult(result);
+  } catch(e) {
+    alert('Trade simulation failed: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Simulate Trade';
+  }
+}
+
+function showResult(result) {
+  const card = document.getElementById('resultCard');
+  card.style.display = 'block';
+  card.className = `result-card visible ${result.improvement ? 'positive' : 'negative'}`;
+
+  const inName = result.inPlayer.name;
+  const outName = selectedOut.name;
+  document.getElementById('resultHeadline').textContent = result.improvement
+    ? `✓ Upgrade: ${outName} → ${inName}`
+    : `✗ Downgrade: ${outName} → ${inName}`;
+
+  document.getElementById('resOld').textContent = teamData.projectedPoints;
+  document.getElementById('resNew').textContent = result.newProjection;
+  document.getElementById('resNew').className = `val ${result.improvement ? 'new-pos' : 'new-neg'}`;
+  const diffText = (result.diff > 0 ? '+' : '') + result.diff;
+  document.getElementById('resDiff').textContent = diffText;
+  document.getElementById('resDiff').className = `val ${result.improvement ? 'diff-pos' : 'diff-neg'}`;
+
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// SEARCH
+document.getElementById('searchInput').addEventListener('input', function() {
+  const q = this.value.trim();
+  clearTimeout(searchTimeout);
+  if (q.length < 2) {
+    document.getElementById('searchResults').classList.remove('open');
+    return;
+  }
+  searchTimeout = setTimeout(() => doSearch(q), 280);
+});
+
+async function doSearch(q) {
+  const res = await fetch(`${API}/api/search-players?q=${encodeURIComponent(q)}`);
+  const players = await res.json();
+  const resultsEl = document.getElementById('searchResults');
+  if (!players.length) {
+    resultsEl.innerHTML = `<div class="search-result-item" style="color:var(--text-muted);cursor:default;">No active players found</div>`;
+    resultsEl.classList.add('open');
+    return;
+  }
+  resultsEl.innerHTML = players.map(p => {
+    const thumb = p.headshot
+      ? `<img class="result-thumb" src="${p.headshot}" alt="">`
+      : `<div class="result-thumb" style="display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--text-secondary);">${(p.name||'?')[0]}</div>`;
+    return `<div class="search-result-item" data-id="${p.id}" data-name="${p.name}" data-pos="${p.position||''}" data-team="${p.teamAbbrev||''}" data-headshot="${p.headshot||''}">
+      ${thumb}
+      <div>
+        <div class="result-name">${p.name}</div>
+        <div class="result-meta">${p.position || '—'} &middot; ${p.teamAbbrev || 'FA'}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  resultsEl.querySelectorAll('.search-result-item').forEach(item => {
+    item.addEventListener('click', () => {
+      selectInPlayer({
+        id: parseInt(item.dataset.id),
+        name: item.dataset.name,
+        position: item.dataset.pos,
+        teamAbbrev: item.dataset.team,
+        headshot: item.dataset.headshot,
+      });
+    });
+  });
+  resultsEl.classList.add('open');
+}
+
+document.addEventListener('click', (e) => {
+  if (!document.getElementById('searchInput').contains(e.target) &&
+      !document.getElementById('searchResults').contains(e.target)) {
+    document.getElementById('searchResults').classList.remove('open');
+  }
+});
+
+document.getElementById('simulateBtn').addEventListener('click', simulateTrade);
+
+loadTeams();
+</script>
+</body>
+</html>
